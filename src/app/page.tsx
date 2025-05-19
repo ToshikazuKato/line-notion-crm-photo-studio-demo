@@ -46,7 +46,7 @@ export default function LiffLoading() {
       ) : (
         <>
           <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mb-6" />
-          <div className="text-lg text-gray-700">情報を取得中…</div>
+          <div className="text-lg text-gray-700">Loading…</div>
         </>
       )}
     </div>
