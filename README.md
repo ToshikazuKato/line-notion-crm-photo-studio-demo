@@ -46,7 +46,7 @@ graph LR
 | プロパティ | 型 | 備考 |
 |------------|----|------|
 | 名前 (title) | Title | 世帯主 or 本人 |
-| LINE UID | Text (unique) | 主キー |
+| LINE UID | Rich text (unique) | 主キー。GASでデコード済みのUIDを保存・検索に利用 |
 | 電話番号 | Phone |  |
 | メールアドレス | Email |  |
 | 生年月日 | Date |  |
@@ -62,11 +62,11 @@ graph LR
 | プロパティ | 型 | 内容 |
 |------------|----|------|
 | 案件名★ | Title | 例 `20240701_山田太郎`（タイムスタンプ+名前） |
-| 主顧客★ | Relation → 顧客DB | LINE_UIDで顧客DBから検索しリレーション |
+| 主顧客★ | Relation → 顧客DB | 顧客IDでリレーション |
 | 撮影種別★ | Select | 七五三／成人式 etc |
-| 予約日時候補1 | Date | Googleフォーム設問・Notion案件DB両方に追加 |
-| 予約日時候補2 | Date | Googleフォーム設問・Notion案件DB両方に追加 |
-| 予約日時候補3 | Date | Googleフォーム設問・Notion案件DB両方に追加 |
+| 予約日時候補1 | Date | Googleフォーム設問・Notion案件DB両方に追加（ISO8601形式、ゼロ埋め） |
+| 予約日時候補2 | Date | Googleフォーム設問・Notion案件DB両方に追加（ISO8601形式、ゼロ埋め） |
+| 予約日時候補3 | Date | Googleフォーム設問・Notion案件DB両方に追加（ISO8601形式、ゼロ埋め） |
 | 撮影日★ | Date | |
 | 撮影場所★ | Select | |
 | ステータス★ | Status | 予約仮→納品完了 |
@@ -105,26 +105,38 @@ graph LR
 
 | ファイル | 関数 | 処理概要 |
 |----------|------|----------|
-| `Code.gs` | `onFormSubmit(e)` | 1. UID取得<br>2. 顧客DB検索/生成<br>3. 案件DB追加 |
-| `notion.gs` | APIヘルパー | Notion API呼び出し |
+| `Code.gs` | `onFormSubmit(e)` | 1. UID取得（base64デコードしformData.uidに格納）<br>2. 顧客DB検索/生成（searchCustomerByUid, createCustomer, updateCustomer）<br>3. 案件DB追加（createCase） |
+| `notion.gs` | APIヘルパー | Notion API呼び出し（LINE_UIDはリッチテキスト型、デコード済みuidで保存・検索） |
 | `slack.gs` | `notifySlack` | エラー通知 |
 
 ---
 
 ## 5. GAS連携仕様（要点）
-- Googleフォームの設問「予約日時候補1〜3」を案件DBの該当プロパティ（日付型）に登録
+- Googleフォームの設問「予約日時候補1〜3」を案件DBの該当プロパティ（日付型、ISO8601形式・ゼロ埋め）に登録
 - 案件名は「タイムスタンプ（YYYYMMDD）」＋「名前」
-- 主顧客リレーションはLINE_UIDで顧客DBから検索し、NotionレコードIDを紐付け
+- 主顧客リレーションは顧客IDで紐付け
 - 顧客新規作成時は「LINE友達ブロック: false」固定
 - Notionのプロパティ内部名は日本語名
+- LINE_UIDはGASでデコード済みの値をリッチテキスト型で保存・検索
 
 ---
 
 ## 6. セキュリティ
 
 - 全通信 HTTPS  
-- UID は base64でエンコードしたものとURL パラメータに付与し、バックエンドでデコードして顧客DBへ保存、将来 JWT化検討  
+- UID は base64でエンコードしたものとURL パラメータに付与し、バックエンドでデコードして顧客DBへ保存（formData.uid）、将来 JWT化検討  
 - 友達追加時メッセージ & Googleフォームで利用目的通知
+- スクリプトプロパティでAPIキーやDB ID等を一元管理
+- Webhookは署名検証（X-Line-Signature）を必ず実装
+- Slack通知で障害検知を迅速化
+- 必要に応じてログ出力も追加
+
+---
+
+## 7. 拡張性
+
+- 顧客DB・案件DBのプロパティ追加もスクリプトプロパティや定数で管理
+- 他の通知先（メール等）もslack.gsに追加可能
 
 ---
 
@@ -159,3 +171,6 @@ if(prop("年齢") == 99, "白寿 (99歳)",
 if(prop("年齢") >= 100, "百寿 (100歳以上)", "成人 (21‑59歳)")))))))))))))))))))
 ```
 </details>
+
+
+https://line-notion-crm-photo-studio-demo.vercel.app/
