@@ -47,6 +47,8 @@ graph LR
 |------------|----|------|
 | 名前 (title) | Title | 世帯主 or 本人 |
 | LINE UID | Rich text (unique) | 主キー。GASでデコード済みのUIDを保存・検索に利用 |
+| LINEニックネーム | Rich text | LINEのニックネーム（友だち追加時に自動取得） |
+| LINEプロフィール画像 | URL | LINEのプロフィール画像URL（友だち追加時に自動取得） |
 | 電話番号 | Phone |  |
 | メールアドレス | Email |  |
 | 生年月日 | Date |  |
@@ -106,8 +108,9 @@ graph LR
 | ファイル | 関数 | 処理概要 |
 |----------|------|----------|
 | `Code.gs` | `onFormSubmit(e)` | 1. UID取得（base64デコードしformData.uidに格納）<br>2. 顧客DB検索/生成（searchCustomerByUid, createCustomer, updateCustomer）<br>3. 案件DB追加（createCase） |
-| `notion.gs` | APIヘルパー | Notion API呼び出し（LINE_UIDはリッチテキスト型、デコード済みuidで保存・検索） |
+| `notion.gs` | APIヘルパー | Notion API呼び出し（LINE_UIDはリッチテキスト型、デコード済みuidで保存・検索）<br>**LINEニックネーム・LINEプロフィール画像も保存** |
 | `slack.gs` | `notifySlack` | エラー通知 |
+| `webhook.gs` | `doPost(e)` | LINE友だち追加時にプロフィールAPIでニックネーム・画像を取得しNotionに保存 |
 
 ---
 

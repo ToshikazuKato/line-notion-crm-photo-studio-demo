@@ -40,6 +40,24 @@ gas/
 #### 3.1.2 decodeUid(base64uid)
 - base64でエンコードされたUIDをデコードし、formData.uidに格納
 
+### 3.1 顧客DB
+| プロパティ | 型 | 備考 |
+|------------|----|------|
+| 名前 (title) | Title | 世帯主 or 本人 |
+| LINE UID | Rich text (unique) | 主キー。GASでデコード済みのUIDを保存・検索に利用 |
+| LINEニックネーム | Rich text | LINEのニックネーム（友だち追加時に自動取得） |
+| LINEプロフィール画像 | URL | LINEのプロフィール画像URL（友だち追加時に自動取得） |
+| 電話番号 | Phone |  |
+| メールアドレス | Email |  |
+| 生年月日 | Date |  |
+| LINE友達ブロック | Checkbox | false=友達、true=ブロック（GAS経由で新規作成時は常にfalse） |
+| 家族メンバー | Relation (self) | 双方向・UI 片側表示 |
+| 家族タグ | Select | 父 / 母 / 子_長女 … |
+| ライフステージ | Formula | 長期判定式 |
+| 撮影種別一覧 | Rollup | 案件DB→撮影種別 |
+| 判定_七五三 ほか | Formula | `contains()` で抽出 |
+| 備考 | Text |  |
+
 ---
 
 ### 3.2 webhook.gs
@@ -52,6 +70,7 @@ gas/
   2. イベントごとに分岐
       - `follow`（友だち追加）
         - 顧客DBに仮登録 or 「LINE友達ブロック」falseで更新
+        - **LINEプロフィールAPIでニックネーム・画像も取得しNotionに保存**
       - `unfollow`（ブロック）
         - 顧客DBの「LINE友達ブロック」をtrueで更新
   3. エラー発生時はSlack通知
@@ -67,9 +86,11 @@ gas/
 
 #### 3.3.2 createCustomer(data)
 - 顧客DBに新規作成（「LINE友達ブロック」falseで作成、LINE_UIDはデコード済みuidで保存）
+- **LINEニックネーム・LINEプロフィール画像も保存**
 
 #### 3.3.3 updateCustomer(id, data)
 - 顧客DBの既存顧客を更新（「LINE友達ブロック」プロパティも更新可、LINE_UIDもデコード済みuidで更新）
+- **LINEニックネーム・LINEプロフィール画像も保存**
 
 #### 3.3.4 createCase(data, customerId)
 - 案件DBに新規案件を作成（顧客IDとリレーション、予約日時候補1〜3も登録）

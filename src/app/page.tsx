@@ -26,7 +26,7 @@ export default function LiffLoading() {
         const base64uid = btoa(uid);
         // GoogleフォームのURL組み立て
         const url = `${formBase}&${uidKey}=${encodeURIComponent(base64uid)}`;
-        alert(`liff.getProfile()のレスポンス:\n${JSON.stringify(profile, null, 2)}\n\nリダイレクト先URL:\n${url}`);
+        // alert(`liff.getProfile()のレスポンス:\n${JSON.stringify(profile, null, 2)}\n\nリダイレクト先URL:\n${url}`);
         window.location.replace(url);
       } catch (e: unknown) {
         const message = (typeof e === "object" && e && "message" in e) ? (e as { message: string }).message : String(e);

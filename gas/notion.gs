@@ -1,65 +1,126 @@
 // Notion API連携ヘルパー
 
 function searchCustomerByUid(uid) {
-  var notionToken = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
-  var dbId = PropertiesService.getScriptProperties().getProperty('CUSTOMER_DB_ID');
-  var url = 'https://api.notion.com/v1/databases/' + dbId + '/query';
-  var payload = {
+  // 空文字・null・undefinedなら検索しない
+  if (!uid) return null;
+  const dbId = PropertiesService.getScriptProperties().getProperty('CUSTOMER_DB_ID');
+  const url = 'https://api.notion.com/v1/databases/' + dbId + '/query';
+  const payload = {
     filter: {
       property: 'LINE_UID',
       rich_text: { equals: uid }
     }
   };
-  var res = notionApiRequest(url, 'post', payload);
+  const res = notionApiRequest(url, 'post', payload);
   if (res && res.results && res.results.length > 0) {
-    return { id: res.results[0].id };
+    // 厳密にLINE_UIDが一致するものだけ返す
+    for (const page of res.results) {
+      const lineUidProp = page.properties['LINE_UID'];
+      if (
+        lineUidProp &&
+        lineUidProp.rich_text &&
+        lineUidProp.rich_text.length > 0 &&
+        lineUidProp.rich_text[0].plain_text === uid
+      ) {
+        return { id: page.id };
+      }
+    };
   }
   return null;
 }
 
+function toNotionDate(str) {
+  if (!str) return undefined;
+  // 例: "1994/10/23" → "1994-10-23"
+  // 例: "2025/05/20 9:00:00" → "2025-05-20T09:00:00"
+  var d = str.replace(/\//g, '-').replace(' ', 'T');
+  // 時刻部分があればゼロ埋め
+  d = d.replace(/T(\d):/, function(_, h) { return 'T0' + h + ':'; });
+  return d;
+}
+
 function createCustomer(data) {
-  var notionToken = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
-  var dbId = PropertiesService.getScriptProperties().getProperty('CUSTOMER_DB_ID');
-  var url = 'https://api.notion.com/v1/pages';
-  var payload = {
+  const dbId = PropertiesService.getScriptProperties().getProperty('CUSTOMER_DB_ID');
+  const url = 'https://api.notion.com/v1/pages';
+  const payload = {
     parent: { database_id: dbId },
     properties: {
       '名前': { title: [{ text: { content: data.name } }] },
-      'LINE_UID': { rich_text: [{ text: { content: data.uid || data.lineUid } }] },
+      'フリガナ': data.furigana ? { rich_text: [{ text: { content: data.furigana } }] } : undefined,
+      '電話番号': data.tel ? { phone_number: data.tel } : undefined,
+      'メールアドレス': data.email ? { email: data.email } : undefined,
+      '生年月日': data.birthday ? { date: { start: toNotionDate(data.birthday) } } : undefined,
+      'LINE_UID': { rich_text: [{ text: { content: data.uid } }] },
       'LINE友達ブロック': { checkbox: false },
+      'LINEニックネーム': data.displayName ? { rich_text: [{ text: { content: data.displayName } }] } : undefined,
+      'LINEプロフィール画像': data.pictureUrl ? { url: data.pictureUrl } : undefined,
       // 必要に応じて他のプロパティも追加
     }
   };
-  var res = notionApiRequest(url, 'post', payload);
+  // undefinedプロパティを除去
+  Object.keys(payload.properties).forEach(function(key){
+    if(payload.properties[key] === undefined) delete payload.properties[key];
+  });
+  const res = notionApiRequest(url, 'post', payload);
+  Logger.log('Notion createCustomer response: %s', JSON.stringify(res));
   return res ? { id: res.id } : null;
 }
 
 function updateCustomer(id, data) {
-  var url = 'https://api.notion.com/v1/pages/' + id;
-  var props = {};
+  const url = 'https://api.notion.com/v1/pages/' + id;
+  const props = {};
+  if (data.name !== undefined) {
+    props['名前'] = { title: [{ text: { content: data.name } }] };
+  }
+  if (data.furigana !== undefined) {
+    props['フリガナ'] = { rich_text: [{ text: { content: data.furigana } }] };
+  }
+  if (data.tel !== undefined) {
+    props['電話番号'] = { phone_number: data.tel };
+  }
+  if (data.email !== undefined) {
+    props['メールアドレス'] = { email: data.email };
+  }
+  if (data.birthday !== undefined) {
+    props['生年月日'] = { date: { start: toNotionDate(data.birthday) } };
+  }
+  if (data.uid !== undefined) {
+    props['LINE_UID'] = { rich_text: [{ text: { content: data.uid } }] };
+  }
   if (data.lineBlocked !== undefined) {
     props['LINE友達ブロック'] = { checkbox: !!data.lineBlocked };
   }
-  // 他の更新項目も必要に応じて追加
-  var payload = { properties: props };
+  if (data.displayName !== undefined) {
+    props['LINEニックネーム'] = { rich_text: [{ text: { content: data.displayName } }] };
+  }
+  if (data.pictureUrl !== undefined) {
+    props['LINEプロフィール画像'] = { url: data.pictureUrl };
+  }
+  // 必要に応じて他のプロパティも追加
+  const payload = { properties: props };
   notionApiRequest(url, 'patch', payload);
 }
 
 function createCase(data, customerId) {
-  var dbId = PropertiesService.getScriptProperties().getProperty('CASE_DB_ID');
-  var url = 'https://api.notion.com/v1/pages';
+  const dbId = PropertiesService.getScriptProperties().getProperty('CASE_DB_ID');
+  const url = 'https://api.notion.com/v1/pages';
   // 案件名: YYYYMMDD_名前
-  var date = Utilities.formatDate(new Date(data.timestamp), 'Asia/Tokyo', 'yyyyMMdd');
-  var caseName = date + '_' + data.name;
-  var payload = {
+  const date = Utilities.formatDate(new Date(data.timestamp), 'Asia/Tokyo', 'yyyyMMdd');
+  const caseName = date + '_' + data.name;
+  const payload = {
     parent: { database_id: dbId },
     properties: {
       '案件名': { title: [{ text: { content: caseName } }] },
       '主顧客': { relation: [{ id: customerId }] },
-      '予約日時候補1': data.reserve1 ? { date: { start: data.reserve1 } } : undefined,
-      '予約日時候補2': data.reserve2 ? { date: { start: data.reserve2 } } : undefined,
-      '予約日時候補3': data.reserve3 ? { date: { start: data.reserve3 } } : undefined,
-      // 他のプロパティも必要に応じて追加
+      '撮影種別': data.photoType ? { select: { name: data.photoType } } : undefined,
+      '問い合わせ内容・詳細': data.detail ? { rich_text: [{ text: { content: data.detail } }] } : undefined,
+      '参考画像1': data.image1 ? { url: data.image1 } : undefined,
+      '参考画像2': data.image2 ? { url: data.image2 } : undefined,
+      '参考画像3': data.image3 ? { url: data.image3 } : undefined,
+      '予約日時候補1': data.reserve1 ? { date: { start: toNotionDate(data.reserve1) } } : undefined,
+      '予約日時候補2': data.reserve2 ? { date: { start: toNotionDate(data.reserve2) } } : undefined,
+      '予約日時候補3': data.reserve3 ? { date: { start: toNotionDate(data.reserve3) } } : undefined,
+      // 必要に応じて他のプロパティも追加
     }
   };
   // undefinedプロパティを除去
@@ -70,8 +131,8 @@ function createCase(data, customerId) {
 }
 
 function notionApiRequest(url, method, payload) {
-  var notionToken = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
-  var options = {
+  const notionToken = PropertiesService.getScriptProperties().getProperty('NOTION_TOKEN');
+  const options = {
     method: method,
     contentType: 'application/json',
     headers: {
@@ -81,6 +142,8 @@ function notionApiRequest(url, method, payload) {
     muteHttpExceptions: true
   };
   if (payload) options.payload = JSON.stringify(payload);
-  var res = UrlFetchApp.fetch(url, options);
+  Logger.log('Notion API Request: %s %s\nPayload: %s', method, url, payload ? JSON.stringify(payload) : '');
+  const res = UrlFetchApp.fetch(url, options);
+  Logger.log('Notion API Response: %s', res.getContentText());
   return JSON.parse(res.getContentText());
 } 
