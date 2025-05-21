@@ -13,7 +13,7 @@ function searchCustomerByUid(uid) {
   };
   const res = notionApiRequest(url, 'post', payload);
   if (res && res.results && res.results.length > 0) {
-    // 厳密にLINE_UIDが一致するものだけ返す
+    // 厳密にLINE_UIDが一致のだけ返す
     for (const page of res.results) {
       const lineUidProp = page.properties['LINE_UID'];
       if (
@@ -31,11 +31,14 @@ function searchCustomerByUid(uid) {
 
 function toNotionDate(str) {
   if (!str) return undefined;
-  // 例: "1994/10/23" → "1994-10-23"
-  // 例: "2025/05/20 9:00:00" → "2025-05-20T09:00:00"
+  // 例: "2025/06/10 12:00:00" → "2025-06-10T12:00:00+09:00"
   var d = str.replace(/\//g, '-').replace(' ', 'T');
-  // 時刻部分があればゼロ埋め
+  // 時刻部分が1桁の場合ゼロ埋め
   d = d.replace(/T(\d):/, function(_, h) { return 'T0' + h + ':'; });
+  // すでにタイムゾーンが付いていなければ+09:00を付与
+  if (!d.match(/([+-][0-9]{2}:[0-9]{2}|Z)$/)) {
+    d += '+09:00';
+  }
   return d;
 }
 
